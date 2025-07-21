@@ -125,7 +125,7 @@ def clean_and_extract(name):
     cleaned_name = re.sub(r"'", '', cleaned_name)
     cleaned_name = re.sub(r'\s+', ' ', cleaned_name).strip().lower()
 
-    keywords_after = ["по поручению", "по поруч", "по пручению", "для"]
+    keywords_after = ["по поручению", "по поруч", "по пручению", "для", "b/o", "by order", "by"]
     keywords_before = ["через"]
 
     for keyword in keywords_after:
