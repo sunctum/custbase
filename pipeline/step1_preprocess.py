@@ -1,18 +1,91 @@
 import pandas as pd
-import numpy as np
 from datetime import datetime
 import os
 import re
+import logging
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 start_time = datetime.now()
+logger.info('Начало работы Step 1')
 
-eau_df_path = r'C:\Users\424\Documents\custbase\data\raw\EAU.xlsx'
-atlas_df_path = r'C:\Users\424\Documents\custbase\data\raw\atlas.xlsx'
+eau_df_path = 'data/raw/EAU.xlsx'
+atlas_df_path = 'data/raw/atlas.xlsx'
+rf_world_path = 'data/raw/rf_world_exp_2025.xlsx'
+output_excel_path = 'data/st1_cleaned/st1.xlsx'
 eau_df_name = os.path.basename(eau_df_path)
 atlas_df_name = os.path.basename(atlas_df_path)
+rf_world_name = os.path.basename(rf_world_path)
 
+# блок рф-мир
+logger.info('Читается РФ-Мир')
+
+rf_world_df = pd.read_excel(rf_world_path, sheet_name='Sheet1')
+rf_world_df['G072 (Дата регистрации)'] = pd.to_datetime(
+    rf_world_df['G072 (Дата регистрации)'], 
+    format='%d.%m.%Y',
+    errors='coerce'
+)
+
+rf_world_df_sel = rf_world_df[[
+                               'ND (Номер декларации)',
+                               'G072 (Дата регистрации)',
+                               'G021 (ИНН отправителя)',
+                               'G022 (Наименование отправителя)',
+                               'G023 (Адрес отправителя)',
+                               'G0231 (Код страны отправителя)',
+                               'G081 (ИНН получателя)',
+                               'G082 (Наименование получателя)',
+                               'G0831 (Код страны получателя)',
+                               'G083 (Адрес получателя)',
+                               'G31_1 (Наименование и характеристики товаров)',
+                               'G31_11 (Фирма-изготовитель)',
+                               'G31_12 (Товарный знак, патент)',
+                               'G31_13 (Страна происхождения)',
+                               'G33 (Код товара по ТН ВЭД)',
+                               'G38 (Вес нетто, кг)',
+                               'G46 (Статистическая стоимость, USD.)',
+                               'G06 (Кол-во мест)',
+                               'G202 (Условие поставки)'
+                               ]]
+
+rf_world_df_sel = rf_world_df_sel.rename(columns= \
+                                         {
+                                            'ND (Номер декларации)':'decl_number',
+                                            'G072 (Дата регистрации)':'decl_date',
+                                            'G021 (ИНН отправителя)':'exporter_tin',
+                                            'G022 (Наименование отправителя)':'exporter_name',
+                                            'G023 (Адрес отправителя)':'exporter_address',
+                                            'G0231 (Код страны отправителя)':'exporter_country',
+                                            'G081 (ИНН получателя)':'importer_tin',
+                                            'G082 (Наименование получателя)':'importer_name',
+                                            'G0831 (Код страны получателя)':'importer_country',
+                                            'G083 (Адрес получателя)':'importer_address',
+                                            'G31_1 (Наименование и характеристики товаров)':'prod_details',
+                                            'G31_11 (Фирма-изготовитель)':'prod_man',
+                                            'G31_12 (Товарный знак, патент)':'prod_brand',
+                                            'G31_13 (Страна происхождения)':'prod_coo',
+                                            'G33 (Код товара по ТН ВЭД)':'prod_hsc',
+                                            'G38 (Вес нетто, кг)':'prod_netw',
+                                            'G46 (Статистическая стоимость, USD.)':'prod_price_statFOB',
+                                            'G06 (Кол-во мест)':'prod_quant',
+                                            'G202 (Условие поставки)':'decl_inc'    
+                                         })
+
+rf_world_df_sel.insert(0, 'source', rf_world_name)
+
+logger.info('Прочитан РФ-Мир')
+logger.info(f"Размер РФ-Мир: {rf_world_df_sel.shape}")
 
 # блок eau
+logger.info('Читается ЕАЭС')
+
 eau_df = pd.read_excel(eau_df_path, sheet_name='Sheet1')
 
 eau_df['Дата подачи статформы'] = pd.to_datetime(
@@ -22,8 +95,7 @@ eau_df['Дата подачи статформы'] = pd.to_datetime(
 )
 
 eau_df_sel = eau_df[['Регистрационный №',
-                     'Дата подачи статформы', 
-                     'ИНН отправителя', 
+                     'Дата подачи статформы',  
                     'Наименование получателя', 
                     'Адрес получателя', 
                     'Код страны получателя', 
@@ -31,6 +103,7 @@ eau_df_sel = eau_df[['Регистрационный №',
                     'Наименование отправителя', 
                     'Адрес отправителя', 
                     'Код страны отправителя', 
+                    'ИНН отправителя',
                     'Код товара по ТН ВЭД ТС', 
                     'Наименование товара по ТН ВЭД ТС', 
                     'Вес нетто кг', 
@@ -58,10 +131,12 @@ eau_df_sel = eau_df_sel.rename(columns= \
                   
 eau_df_sel.insert(0, 'source', eau_df_name)
 
-print('----------------------ЕАС ПРОЧИТАН----------------------')
+logger.info('Прочитан ЕАЭС')
+logger.info(f"Размер ЕАЭС: {eau_df_sel.shape}")
 
 # блок atlas
 # Есть несоответствие - в eau мы берем стат стоимость в $, а в атлас - фоб в $. Это связано с исходными данными - в атласе CIF USD практически не заполнен, а в EAU нет близких "условий"
+logger.info('Читается Атлас')
 atlas_df = pd.read_excel(atlas_df_path, sheet_name=0, parse_dates=[1])
 
 atlas_df_sel = atlas_df[['DECLARATION NUMBER',
@@ -109,14 +184,17 @@ atlas_df_sel = atlas_df_sel.rename(columns= \
 
 atlas_df_sel.insert(0, 'source', atlas_df_name)
 
-merged_df = pd.concat([eau_df_sel, atlas_df_sel], ignore_index=True, sort=False)
+logger.info('Прочитан Атлас')
+logger.info(f"Размер Атлас: {atlas_df_sel.shape}")
+
+merged_df = pd.concat([eau_df_sel, atlas_df_sel, rf_world_df_sel], ignore_index=True, sort=False)
 
 merged_df['decl_date'] = pd.to_datetime(merged_df['decl_date'], errors='coerce')
 merged_df.insert(0, 'decl_id', range(len(merged_df)))
 
-print("Размер итогового датафрейма:", merged_df.shape)
-print("Колонки:", merged_df.columns.tolist())
-print ('----------------------ИСТОЧНИКИ ПРОЧИТАНЫ----------------------')
+logger.info(f"Размер итогового датафрейма: {merged_df.shape}")
+logger.info(f"Колонки: {merged_df.columns.tolist()}")
+logger.info('Источники прочитаны')
 
 def clean_and_extract(name):
     # Сначала удаляем кавычки и спецсимволы. Убрал точку и двоеточие, т.к. могут быть в ОПФ типа S.P.A. или Ф-Л
@@ -334,11 +412,11 @@ for col in ['exporter_name', 'importer_name']:
     merged_df[col] = normalized_data['Нормализованное_название']
 
 
-merged_df.to_excel(r'C:\Users\424\Documents\custbase\data\st1_cleaned\st1.xlsx', index=False)
+merged_df.to_excel(output_excel_path, index=False)
 
 end_time = datetime.now()
 
-print(f'Время начала: {start_time}')
-print(f'Время окончания: {end_time}')
-print(f'Продолжительность: {end_time - start_time}')
-print('----------------------ЗАВЕРШЕНИЕ РАБОТЫ----------------------')
+logger.info(f'Время начала: {start_time}')
+logger.info(f'Время окончания: {end_time}')
+logger.info(f'Продолжительность: {end_time - start_time}')
+logger.info('Готово: tagging_results.xlsx')

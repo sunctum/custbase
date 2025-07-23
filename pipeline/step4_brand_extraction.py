@@ -20,6 +20,7 @@ logger.info('Начало работы Step 4')
 input_path = "data/st3_enriched/st3.xlsx"
 output_path = "data/st4_branded/st4.xlsx"
 brand_dict_path = "data/utilities/dict_brand.xlsx"
+FUZZY_MIN_ALIAS_LEN = 3
 
 def load_brand_aliases(excel_path: str) -> dict:
     df = pd.read_excel(excel_path)
@@ -42,13 +43,13 @@ def get_adaptive_threshold(token: str) -> int:
     if length <= 3:
         return 100  # Только точное совпадение
     elif length <= 5:
-        return 95
+        return 97
     elif length <= 7:
-        return 90
+        return 95
     else:
-        return 85  # длина ≥ 8
+        return 90  # длина ≥ 8
 
-def extract_brand_from_row(row: pd.Series, alias_to_brand: dict) -> tuple[str, list[str]]:
+def extract_brand_from_row(row: pd.Series, alias_to_brand: dict, fuzzy_keys: list[str]) -> tuple[str, list[str]]:
     search_fields = ['prod_brand', 'prod_man', 'exporter_name', 'prod_details']
     found = set()
     # 1. Быстрый проход, full match
@@ -72,7 +73,7 @@ def extract_brand_from_row(row: pd.Series, alias_to_brand: dict) -> tuple[str, l
         tokens = re.findall(r'\b\w{3,}\b', str(val).lower())
         for token in tokens:
             threshold = get_adaptive_threshold(token)
-            result = fuzz_process.extractOne(token, alias_to_brand.keys(), score_cutoff=threshold)
+            result = fuzz_process.extractOne(token, fuzzy_keys, score_cutoff=threshold)
             if result:
                 match, _ = result
                 found.add(alias_to_brand[match])
@@ -85,9 +86,10 @@ def extract_brand_from_row(row: pd.Series, alias_to_brand: dict) -> tuple[str, l
 
 def assign_brands(df: pd.DataFrame, alias_to_brand: dict) -> pd.DataFrame:
     df = df.copy()
+    fuzzy_keys = [alias for alias in alias_to_brand.keys() if len(alias) >= FUZZY_MIN_ALIAS_LEN]
     tqdm.pandas(desc="🔍 Обработка строк")
 
-    results = df.progress_apply(lambda row: extract_brand_from_row(row, alias_to_brand), axis=1)
+    results = df.progress_apply(lambda row: extract_brand_from_row(row, alias_to_brand, fuzzy_keys), axis=1)
     df['brand_extracted'] = results.apply(lambda x: x[0])
     df['brand_candidates'] = results.apply(lambda x: ', '.join(x[1]) if x[1] else '')
     df['brand_mixed'] = df['brand_extracted'].apply(lambda x: x == 'смешанный')

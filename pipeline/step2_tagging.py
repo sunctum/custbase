@@ -4,19 +4,32 @@ import pymorphy2
 from nltk.corpus import stopwords
 from nltk import download
 from collections import defaultdict
+import logging
+from datetime import datetime
 
-print('Начало работы Step 2')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+start_time = datetime.now()
+
+logging.info('Начало работы Step 2')
 
 # Загрузка ресурсов
 morph = pymorphy2.MorphAnalyzer()
 download('stopwords')
 stop_words = set(stopwords.words("russian"))
 
-input_excel_path = r'C:\Users\424\Documents\custbase\data\st1_cleaned\st1.xlsx'
-output_excel_path = r'C:\Users\424\Documents\custbase\data\st2_tagged\st2.xlsx'
+input_excel_path = 'data/st1_cleaned/st1.xlsx'
+output_excel_path = 'data/st2_tagged/st2.xlsx'
+tags_csv_path = 'data/utilities/word_tagger/tagged_words.csv'
 
 # Загрузка списка слов
-tags_df = pd.read_csv(r"C:\Users\424\Documents\custbase\data\utilities\word_tagger\tagged_words.csv")
+tags_df = pd.read_csv(tags_csv_path)
 approved = set(tags_df[tags_df["tag"] == "approved"]["word"].str.lower())
 rejected = set(tags_df[tags_df["tag"] == "rejected"]["word"].str.lower())
 
@@ -27,7 +40,7 @@ def extract_lemmas(text):
     tokens = re.findall(r"\b[а-яА-Яa-zA-Z]+\b", text.lower())
     lemmas = []
     for token in tokens:
-        if token not in stop_words and len(token) > 2:
+        if token not in stop_words and len(token) > 1:
             lemma = morph.parse(token)[0].normal_form
             lemmas.append(lemma)
     return lemmas
@@ -73,4 +86,10 @@ df["matched_approved"] = approved_matches
 df["matched_rejected"] = rejected_matches
 
 df.to_excel(output_excel_path, index=False)
-print("Готово: tagging_results.xlsx")
+
+end_time = datetime.now()
+
+logger.info(f'Время начала: {start_time}')
+logger.info(f'Время окончания: {end_time}')
+logger.info(f'Продолжительность: {end_time - start_time}')
+logger.info("Готово: tagging_results.xlsx")
