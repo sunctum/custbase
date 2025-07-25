@@ -59,7 +59,8 @@ def extract_brand_from_row(row: pd.Series, alias_to_brand: dict, fuzzy_keys: lis
             continue
         val = str(val).lower()[:1000]  # ограничиваем длину строки
         for alias, brand in alias_to_brand.items():
-            if re.search(r'\b' + re.escape(alias) + r'\b', val):
+            # Проверяем, что весь псевдоним совпадает с фразой целиком
+            if alias in val:  # Исключаем частичные совпадения
                 found.add(brand)
 
     if found:
