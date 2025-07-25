@@ -203,12 +203,15 @@ def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     df['prod_price_statFOB'] = df['prod_price_statFOB'].fillna(0)
     df['prod_netw'] = df['prod_netw'].fillna(0)
 
-    duplicates_mask = (
-        df.groupby(group_keys)['prod_price_statFOB'].transform('nunique') == 1
-    ) & (
-        df.groupby(group_keys)['prod_netw'].transform('nunique') == 1
-    )
-    df['__needs_adjustment'] = duplicates_mask
+    # Округляем для стабильности
+    df['prod_price_statFOB'] = df['prod_price_statFOB'].round(2)
+    df['prod_netw'] = df['prod_netw'].round(3)
+
+    # Надежная проверка "все значения одинаковы"
+    df['__same_price'] = df.groupby(group_keys)['prod_price_statFOB'].transform(lambda x: x.max() - x.min() < 0.01)
+    df['__same_netw'] = df.groupby(group_keys)['prod_netw'].transform(lambda x: x.max() - x.min() < 0.001)
+
+    df['__needs_adjustment'] = df['__same_price'] & df['__same_netw']
 
     df_adj = df[df['__needs_adjustment']].copy()
     agg = df_adj.groupby(group_keys).agg(
@@ -219,18 +222,24 @@ def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     ).reset_index()
 
     df_adj = df_adj.merge(agg, on=group_keys, how='left')
+
     df_adj['adj_price'] = df_adj.apply(
         lambda row: (row['prod_quant'] / row['total_quant']) * row['total_price']
         if row['total_quant'] > 0 else row['total_price'] / row['num_rows'],
         axis=1
     )
+
     df_adj['adj_netw'] = df_adj.apply(
         lambda row: (row['prod_quant'] / row['total_quant']) * row['total_netw']
         if row['total_quant'] > 0 else row['total_netw'] / row['num_rows'],
         axis=1
     )
+
     df_adj['was_adjusted'] = True
-    df_adj.drop(columns=['total_quant', 'total_price', 'total_netw', 'num_rows'], inplace=True)
+    df_adj.drop(columns=[
+        'total_quant', 'total_price', 'total_netw', 'num_rows',
+        '__same_price', '__same_netw'
+    ], inplace=True)
 
     df_rest = df[~df['__needs_adjustment']].copy()
     df_rest['adj_price'] = df_rest['prod_price_statFOB']
@@ -240,7 +249,7 @@ def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     df_final = pd.concat([df_adj, df_rest], ignore_index=True)
     df_final.drop(columns='__needs_adjustment', inplace=True)
 
-    # Страхуем от неожиданных NaN
+    # Страхуем от NaN
     df_final['adj_price'] = df_final['adj_price'].fillna(df_final['prod_price_statFOB'])
     df_final['adj_netw'] = df_final['adj_netw'].fillna(df_final['prod_netw'])
 
