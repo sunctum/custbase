@@ -7,3 +7,4 @@
 # Виртуальное окружение
 /pipeline/venv
 /venv
+*.pyc
