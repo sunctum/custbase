@@ -1,6 +1,6 @@
 from pathlib import Path
 from pipeline.step1_preprocess import process_source, normalize_company_columns, COLUMNS_MAPS
-from utils.io import save_to_excel_file
+from pipeline.utils.io import save_to_excel_file
 
 def run_single_file(xlsx_path: str):
     df = process_source("single_file", xlsx_path, COLUMNS_MAPS["rf_world"])
