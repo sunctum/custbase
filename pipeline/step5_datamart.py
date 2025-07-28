@@ -7,7 +7,7 @@ from utils.logging_utils import setup_logger
 logger = setup_logger()
 
 INPUT_PATH = 'data/st4_branded/st4.xlsx'
-OUTPUT_PATH = 'data/st4_branded/st4.xlsx'
+OUTPUT_PATH = 'data/st5_datamart/st5.xlsx'
 COLUMNS_TO_DROP = [
     'brand_candidates', 'brand_mixed', 'brand_column_reason',
     'was_adjusted', 'is_valid',
