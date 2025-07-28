@@ -1,21 +1,23 @@
+# steps/step3_enrichment.py
+
 import pandas as pd
 from datetime import datetime
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+from utils.io import read_excel_file, save_to_excel_file
+from utils.logging_utils import setup_logger
 
+# --- Логгер ---
+logger = setup_logger()
 start_time = datetime.now()
-logger.info('Начало работы Step 3')
+logger.info('--- Step 3: Обогащение и валидация ---')
 
-input_excel_path = 'data/st2_tagged/st2.xlsx'
-output_excel_path = 'data/st3_enriched/st3.xlsx'
+# --- Пути ---
+INPUT_PATH = 'data/st2_tagged/st2.xlsx'
+OUTPUT_PATH = 'data/st3_enriched/st3.xlsx'
+BLACKLIST_PATH = r'C:\Users\424\Documents\custbase\data\utilities\blacklist_companies.xlsx'
+
+# ---------------------------- ФУНКЦИИ ---------------------------- #
 
 # --- Функция для унификации стран ---
 def unify_country_names(df: pd.DataFrame, columns_to_process: list) -> pd.DataFrame:
@@ -198,19 +200,12 @@ def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     group_keys = ['decl_number', 'decl_date', 'importer_name', 'exporter_name', 'source']
 
-    # Защита от NaN
     df['prod_quant'] = df['prod_quant'].fillna(0)
-    df['prod_price_statFOB'] = df['prod_price_statFOB'].fillna(0)
-    df['prod_netw'] = df['prod_netw'].fillna(0)
+    df['prod_price_statFOB'] = df['prod_price_statFOB'].fillna(0).round(2)
+    df['prod_netw'] = df['prod_netw'].fillna(0).round(3)
 
-    # Округляем для стабильности
-    df['prod_price_statFOB'] = df['prod_price_statFOB'].round(2)
-    df['prod_netw'] = df['prod_netw'].round(3)
-
-    # Надежная проверка "все значения одинаковы"
     df['__same_price'] = df.groupby(group_keys)['prod_price_statFOB'].transform(lambda x: x.max() - x.min() < 0.01)
     df['__same_netw'] = df.groupby(group_keys)['prod_netw'].transform(lambda x: x.max() - x.min() < 0.001)
-
     df['__needs_adjustment'] = df['__same_price'] & df['__same_netw']
 
     df_adj = df[df['__needs_adjustment']].copy()
@@ -228,18 +223,13 @@ def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
         if row['total_quant'] > 0 else row['total_price'] / row['num_rows'],
         axis=1
     )
-
     df_adj['adj_netw'] = df_adj.apply(
         lambda row: (row['prod_quant'] / row['total_quant']) * row['total_netw']
         if row['total_quant'] > 0 else row['total_netw'] / row['num_rows'],
         axis=1
     )
-
     df_adj['was_adjusted'] = True
-    df_adj.drop(columns=[
-        'total_quant', 'total_price', 'total_netw', 'num_rows',
-        '__same_price', '__same_netw'
-    ], inplace=True)
+    df_adj.drop(columns=['total_quant', 'total_price', 'total_netw', 'num_rows', '__same_price', '__same_netw'], inplace=True)
 
     df_rest = df[~df['__needs_adjustment']].copy()
     df_rest['adj_price'] = df_rest['prod_price_statFOB']
@@ -248,8 +238,6 @@ def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 
     df_final = pd.concat([df_adj, df_rest], ignore_index=True)
     df_final.drop(columns='__needs_adjustment', inplace=True)
-
-    # Страхуем от NaN
     df_final['adj_price'] = df_final['adj_price'].fillna(df_final['prod_price_statFOB'])
     df_final['adj_netw'] = df_final['adj_netw'].fillna(df_final['prod_netw'])
 
@@ -374,39 +362,39 @@ except Exception as e:
     logger.error(f"❌ Произошла ошибка при чтении файла: {e}")
     df_raw = pd.DataFrame()
 
-if not df_raw.empty:
-    # 1. Унификация стран
-    logger.info("🔁 Унификация названий стран...")
-    country_cols = ["prod_coo", "exporter_country", "importer_country"]
-    df_processed = unify_country_names(df_raw.copy(), country_cols)
-    logger.info("✅ Завершена унификация.")
-    # 2. Обогащение по дублирующимся декларациям
-    logger.info("🔁 Перераспределение по дубликатам деклараций...")
-    df_processed = enrich_decl_duplicates(df_processed)
-    logger.info("✅ Завершено перераспределение. Добавлены adj_price, adj_netw, was_adjusted.")
-    # 3. Проверка корректности unit_price_kg
-    logger.info("🔁 Проверка корректности unit_price_kg...")
-    df_processed = flag_unit_price_anomalies(df_processed)
-    logger.info(f"✅ Аномалии помечены. Некорректных строк: {(~df_processed['is_valid']).sum()}")
-    # 4. Тегирование "плохих" компаний
-    logger.info("🔁 Выявление подозрительных компаний на основании классификации...")
-    df_processed = flag_suspect_companies(df_processed)
-    bad_importers = df_processed['is_bad_importer'].sum()
-    bad_exporters = df_processed['is_bad_exporter'].sum()
-    logger.info(f"✅ Подозрительные компании выявлены. Импортёров: {bad_importers}, экспортёров: {bad_exporters}")
-    # 5. Тегирование по ручному блеклисту
-    logger.info("🔁 Применение ручного блеклиста...")
-    df_processed = apply_manual_blacklist(df_processed)
-    logger.info(f"✅ Блеклист применён. Найдено: {df_processed['is_blacklisted_manual'].sum()} записей")
+# ------------------------- ОСНОВНОЙ БЛОК -------------------------- #
 
-
-    # Сохранение
+def main():
     try:
-        df_processed.to_excel(output_excel_path, index=False)
-        logger.info(f"📁 Файл сохранён: {output_excel_path}")
-        end_time = datetime.now()
-        logger.info(f'🕒 Продолжительность: {end_time - start_time}')
+        df_raw = read_excel_file(INPUT_PATH)
+        logger.info(f"✅ Прочитан файл: {INPUT_PATH} ({df_raw.shape})")
     except Exception as e:
-        logger.error(f"❌ Ошибка при сохранении файла: {e}")
-else:
-    logger.warning("⚠️ Обработка не выполнена: исходный файл пуст.")
+        logger.error(f"❌ Ошибка при загрузке: {e}")
+        return
+
+    # 1. Унификация стран
+    df = unify_country_names(df_raw, ["prod_coo", "exporter_country", "importer_country"])
+
+    # 2. Обогащение по дубликатам
+    df = enrich_decl_duplicates(df)
+
+    # 3. Аномалии unit_price_kg
+    df = flag_unit_price_anomalies(df)
+    logger.info(f"❗ Некорректных строк: {(~df['is_valid']).sum()}")
+
+    # 4. Подозрительные компании
+    df = flag_suspect_companies(df)
+
+    # 5. Ручной блеклист
+    df = apply_manual_blacklist(df, BLACKLIST_PATH)
+
+    try:
+        save_to_excel_file(df, OUTPUT_PATH)
+        end_time = datetime.now()
+        logger.info(f"📁 Сохранено: {OUTPUT_PATH}")
+        logger.info(f"🕒 Продолжительность: {end_time - start_time}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка при сохранении: {e}")
+
+if __name__ == '__main__':
+    main()
