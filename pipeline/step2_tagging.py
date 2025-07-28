@@ -1,42 +1,37 @@
+# steps/step2_tagging.py
+
+from datetime import datetime
 import pandas as pd
 import re
 import pymorphy2
-from nltk.corpus import stopwords
 from nltk import download
-from collections import defaultdict
-import logging
-from datetime import datetime
+from nltk.corpus import stopwords
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+from utils.io import read_excel_file, save_to_excel_file
+from utils.logging_utils import setup_logger
+
+logger = setup_logger()
 start_time = datetime.now()
+logger.info('--- Step 2: Текстовая классификация ---')
 
-logging.info('Начало работы Step 2')
+# --- Пути ---
+INPUT_PATH = 'data/st1_cleaned/st1.xlsx'
+OUTPUT_PATH = 'data/st2_tagged/st2.xlsx'
+TAGS_PATH = 'data/utilities/word_tagger/tagged_words.csv'
 
-# Загрузка ресурсов
+# --- Загрузка ресурсов ---
 morph = pymorphy2.MorphAnalyzer()
 download('stopwords')
 stop_words = set(stopwords.words("russian"))
 
-input_excel_path = 'data/st1_cleaned/st1.xlsx'
-output_excel_path = 'data/st2_tagged/st2.xlsx'
-tags_csv_path = 'data/utilities/word_tagger/tagged_words.csv'
-
-# Загрузка списка слов
-tags_df = pd.read_csv(tags_csv_path)
+# --- Загрузка данных ---
+df = read_excel_file(INPUT_PATH)
+tags_df = pd.read_csv(TAGS_PATH)
 approved = set(tags_df[tags_df["tag"] == "approved"]["word"].str.lower())
 rejected = set(tags_df[tags_df["tag"] == "rejected"]["word"].str.lower())
 
-df = pd.read_excel(input_excel_path)
-
-# Функция препроцессинга
-def extract_lemmas(text):
+# --- Обработка текста ---
+def extract_lemmas(text: str) -> list[str]:
     tokens = re.findall(r"\b[а-яА-Яa-zA-Z]+\b", text.lower())
     lemmas = []
     for token in tokens:
@@ -45,51 +40,33 @@ def extract_lemmas(text):
             lemmas.append(lemma)
     return lemmas
 
-# Инициализация
-classifications = []
-reasons = []
-approved_matches = []
-rejected_matches = []
-
-for index, row in df.iterrows():
-    text = row["prod_details"]
+def classify_text(text: str):
     if pd.isna(text):
-        classifications.append("не определено")
-        reasons.append("")
-        approved_matches.append([])
-        rejected_matches.append([])
-        continue
+        return "не определено", "", [], []
 
     lemmas = extract_lemmas(text)
-    matched_approved = [lemma for lemma in lemmas if lemma in approved]
-    matched_rejected = [lemma for lemma in lemmas if lemma in rejected]
+    matched_approved = [l for l in lemmas if l in approved]
+    matched_rejected = [l for l in lemmas if l in rejected]
 
     if matched_rejected:
-        classification = "исключено"
-        reason = matched_rejected[0]
+        return "исключено", matched_rejected[0], matched_approved, matched_rejected
     elif matched_approved:
-        classification = "одобрено"
-        reason = matched_approved[0]
+        return "одобрено", matched_approved[0], matched_approved, matched_rejected
     else:
-        classification = "не определено"
-        reason = ""
+        return "не определено", "", matched_approved, matched_rejected
 
-    classifications.append(classification)
-    reasons.append(reason)
-    approved_matches.append(matched_approved)
-    rejected_matches.append(matched_rejected)
+# --- Применение классификации ---
+results = df["prod_details"].apply(classify_text)
+df["classification"] = results.str[0]
+df["reason"] = results.str[1]
+df["matched_approved"] = results.str[2]
+df["matched_rejected"] = results.str[3]
 
-# Объединение с исходным DataFrame
-df["classification"] = classifications
-df["reason"] = reasons
-df["matched_approved"] = approved_matches
-df["matched_rejected"] = rejected_matches
-
-df.to_excel(output_excel_path, index=False)
+# --- Сохранение ---
+save_to_excel_file(df, OUTPUT_PATH)
 
 end_time = datetime.now()
-
 logger.info(f'Время начала: {start_time}')
 logger.info(f'Время окончания: {end_time}')
 logger.info(f'Продолжительность: {end_time - start_time}')
-logger.info("Готово: tagging_results.xlsx")
+logger.info(f'Готово: {OUTPUT_PATH}')
