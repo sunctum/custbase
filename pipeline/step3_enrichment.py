@@ -308,59 +308,28 @@ def flag_suspect_companies(df: pd.DataFrame, min_records: int = 10, exclusion_th
 
     return df
 # --- Функция тегирования компаний из ручного блеклиста ---
-def apply_manual_blacklist(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Проставляет флаг is_blacklisted_manual на основании таблицы с ручным блеклистом.
-
-    blacklist_path — путь к Excel-файлу с колонками:
-        - company_name (str): название компании
-        - type (str): 'importer' или 'exporter'
-        - reason (str): причина внесения
-
-    Добавляет в df:
-        - is_blacklisted_manual: True/False
-        - blacklist_reason: причина (если есть)
-
-    Возвращает DataFrame с новыми колонками.
-    """
+def apply_manual_blacklist(df: pd.DataFrame, path: str) -> pd.DataFrame:
     df = df.copy()
     df['is_blacklisted_manual'] = False
     df['blacklist_reason'] = ""
-    blacklist_path = r'C:\Users\424\Documents\custbase\data\utilities\blacklist_companies.xlsx'
-
     try:
-        blacklist = pd.read_excel(blacklist_path)
+        blacklist = pd.read_excel(path)
         blacklist = blacklist.dropna(subset=["company_name", "type"])
         for _, row in blacklist.iterrows():
             name = row["company_name"]
-            type = row["type"].lower()
+            type_ = row["type"].lower()
             reason = row.get("reason", "")
-
-            if type == "importer":
+            if type_ == "importer":
                 mask = df["importer_name"] == name
-            elif type == "exporter":
+            elif type_ == "exporter":
                 mask = df["exporter_name"] == name
             else:
-                continue  # неизвестный тип, пропускаем
-
+                continue
             df.loc[mask, "is_blacklisted_manual"] = True
             df.loc[mask, "blacklist_reason"] = reason
-
     except Exception as e:
         logger.warning(f"⚠️ Не удалось применить ручной блеклист: {e}")
-
     return df
-
-# --- Начало основного блока обработки ---
-try:
-    df_raw = pd.read_excel(input_excel_path)
-    logger.info(f"✅ Файл '{input_excel_path}' успешно прочитан. Размеры DataFrame: {df_raw.shape}")
-except FileNotFoundError:
-    logger.warning(f"⚠️ Ошибка: Файл '{input_excel_path}' не найден. Проверьте путь.")
-    df_raw = pd.DataFrame()
-except Exception as e:
-    logger.error(f"❌ Произошла ошибка при чтении файла: {e}")
-    df_raw = pd.DataFrame()
 
 # ------------------------- ОСНОВНОЙ БЛОК -------------------------- #
 
