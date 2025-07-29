@@ -1,6 +1,7 @@
 # steps/step5_finalize.py
 
 from datetime import datetime
+
 from utils.io import read_excel_file, save_to_excel_file
 from utils.logging_utils import setup_logger
 
@@ -16,12 +17,26 @@ COLUMNS_TO_DROP = [
     'classification', 'reason', 'matched_approved', 'matched_rejected'
 ]
 
+
+def add_is_relevant_column(df):
+    df['any_black_flag'] = ~(
+        (df['is_valid'] == 'ИСТИНА') |
+        (df['is_bad_importer'] == 'ИСТИНА') |
+        (df['is_bad_exporter'] == 'ИСТИНА') |
+        (df['is_blacklisted_manual'] == 'ИСТИНА') |
+        (df['classification'] == 'исключено')
+    )
+    df['any_black_flag'] = df['any_black_flag'].map({True: 'ИСТИНА', False: 'ЛОЖЬ'})
+    return df
+
+
 def main():
     start_time = datetime.now()
     logger.info('--- Начало Step 5 ---')
 
     df = read_excel_file(INPUT_PATH)
-    df_cleaned = df.drop(columns=COLUMNS_TO_DROP)
+    df = add_is_relevant_column(df)
+    df_cleaned = df.drop(columns=COLUMNS_TO_DROP, errors='ignore')
     save_to_excel_file(df_cleaned, OUTPUT_PATH)
 
     end_time = datetime.now()
@@ -29,6 +44,7 @@ def main():
     logger.info(f'Время окончания: {end_time}')
     logger.info(f'Продолжительность: {end_time - start_time}')
     logger.info('--- Готово ---')
+
 
 if __name__ == '__main__':
     main()
