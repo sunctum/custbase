@@ -11,22 +11,25 @@ INPUT_PATH = 'data/st4_branded/st4.xlsx'
 OUTPUT_PATH = 'data/st5_datamart/st5.xlsx'
 COLUMNS_TO_DROP = [
     'brand_candidates', 'brand_mixed', 'brand_column_reason',
-    'was_adjusted', 'is_valid',
+    'was_adjusted', '__same_price','__same_netw',
+    'is_valid', 'is_valid_reason'
     'is_bad_importer', 'is_bad_exporter',
     'is_blacklisted_manual', 'blacklist_reason',
-    'classification', 'reason', 'matched_approved', 'matched_rejected'
+    'classification', 'reason', 'matched_approved', 'matched_rejected',
+    'brand_candidates', 'brand_mixed'
 ]
 
 
 def add_is_relevant_column(df):
-    df['any_black_flag'] = ~(
-        (df['is_valid'] == 'ИСТИНА') |
-        (df['is_bad_importer'] == 'ИСТИНА') |
-        (df['is_bad_exporter'] == 'ИСТИНА') |
-        (df['is_blacklisted_manual'] == 'ИСТИНА') |
+    df = df.copy()
+    df['is_relevant'] = ~(
+        (~df['is_valid']) |
+        (df['is_bad_importer']) |
+        (df['is_bad_exporter']) |
+        (df['is_blacklisted_manual']) |
         (df['classification'] == 'исключено')
     )
-    df['any_black_flag'] = df['any_black_flag'].map({True: 'ИСТИНА', False: 'ЛОЖЬ'})
+    df['is_relevant'] = df['is_relevant'].map({True: 'ИСТИНА', False: 'ЛОЖЬ'})
     return df
 
 
