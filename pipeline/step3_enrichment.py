@@ -199,25 +199,27 @@ def unify_country_names(df: pd.DataFrame, columns_to_process: list) -> pd.DataFr
 def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     group_keys = ['decl_number', 'decl_date', 'importer_name', 'exporter_name', 'source']
+    extended_keys = group_keys + ['prod_price_statFOB', 'prod_netw']
 
     df['prod_quant'] = df['prod_quant'].fillna(0)
     df['prod_price_statFOB'] = df['prod_price_statFOB'].fillna(0).round(2)
     df['prod_netw'] = df['prod_netw'].fillna(0).round(3)
 
-    df['__same_price'] = df.groupby(group_keys)['prod_price_statFOB'].transform(lambda x: x.max() - x.min() < 0.01)
-    df['__same_netw'] = df.groupby(group_keys)['prod_netw'].transform(lambda x: x.max() - x.min() < 0.001)
-    df['__needs_adjustment'] = df['__same_price'] & df['__same_netw']
-
+    # Найдём строки, которые дублируются по extended_keys
+    df['__needs_adjustment'] = df.duplicated(subset=extended_keys, keep=False)
     df_adj = df[df['__needs_adjustment']].copy()
-    agg = df_adj.groupby(group_keys).agg(
+
+    # Группируем по extended_keys
+    agg = df_adj.groupby(extended_keys).agg(
         total_quant=('prod_quant', 'sum'),
         total_price=('prod_price_statFOB', 'first'),
         total_netw=('prod_netw', 'first'),
         num_rows=('prod_quant', 'count')
     ).reset_index()
 
-    df_adj = df_adj.merge(agg, on=group_keys, how='left')
+    df_adj = df_adj.merge(agg, on=extended_keys, how='left')
 
+    # Пропорциональное распределение
     df_adj['adj_price'] = df_adj.apply(
         lambda row: (row['prod_quant'] / row['total_quant']) * row['total_price']
         if row['total_quant'] > 0 else row['total_price'] / row['num_rows'],
@@ -229,13 +231,15 @@ def enrich_decl_duplicates(df: pd.DataFrame) -> pd.DataFrame:
         axis=1
     )
     df_adj['was_adjusted'] = True
-    df_adj.drop(columns=['total_quant', 'total_price', 'total_netw', 'num_rows', '__same_price', '__same_netw'], inplace=True)
+    df_adj.drop(columns=['total_quant', 'total_price', 'total_netw', 'num_rows'], inplace=True)
 
+    # Остальные строки — без перерасчета
     df_rest = df[~df['__needs_adjustment']].copy()
     df_rest['adj_price'] = df_rest['prod_price_statFOB']
     df_rest['adj_netw'] = df_rest['prod_netw']
     df_rest['was_adjusted'] = False
 
+    # Объединение и финальные шаги
     df_final = pd.concat([df_adj, df_rest], ignore_index=True)
     df_final.drop(columns='__needs_adjustment', inplace=True)
     df_final['adj_price'] = df_final['adj_price'].fillna(df_final['prod_price_statFOB'])
