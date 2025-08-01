@@ -32,7 +32,7 @@ rejected = set(tags_df[tags_df["tag"] == "rejected"]["word"].str.lower())
 
 # --- Обработка текста ---
 def extract_lemmas(text: str) -> list[str]:
-    tokens = re.findall(r"\b[а-яА-Яa-zA-Z]+\b", text.lower())
+    tokens = re.findall(r"\b[а-яА-Яa-zA-Z]+(?:-[а-яА-Яa-zA-Z]+)*\b", text.lower())
     lemmas = []
     for token in tokens:
         if token not in stop_words and len(token) > 1:
