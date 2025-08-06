@@ -15,7 +15,7 @@ logger.info('--- Step 3: Обогащение и валидация ---')
 # --- Пути ---
 INPUT_PATH = 'data/st2_tagged/st2.xlsx'
 OUTPUT_PATH = 'data/st3_enriched/st3.xlsx'
-BLACKLIST_PATH = r'C:\Users\424\Documents\custbase\data\utilities\blacklist_companies.xlsx'
+BLACKLIST_PATH = 'data/utilities/blacklist_companies.xlsx'
 
 # ---------------------------- ФУНКЦИИ ---------------------------- #
 
@@ -334,6 +334,25 @@ def apply_manual_blacklist(df: pd.DataFrame, path: str) -> pd.DataFrame:
     except Exception as e:
         logger.warning(f"⚠️ Не удалось применить ручной блеклист: {e}")
     return df
+# --- Функция обрезки prod_hsc --- 
+def truncate_long_prod_hsc(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Если длина значения в prod_hsc больше 10 символов — обрезает последнюю цифру.
+
+    Args:
+        df (pd.DataFrame): Исходный DataFrame
+
+    Returns:
+        pd.DataFrame: DataFrame с обработанным prod_hsc
+    """
+    df = df.copy()
+    if "prod_hsc" in df.columns:
+        df["prod_hsc"] = df["prod_hsc"].apply(
+            lambda x: str(x)[:-1] if isinstance(x, str) and len(x) > 10 else x
+        )
+    else:
+        logger.warning("⚠️ Столбец 'prod_hsc' не найден в DataFrame — обрезка не выполнена.")
+    return df
 
 # ------------------------- ОСНОВНОЙ БЛОК -------------------------- #
 
@@ -348,17 +367,20 @@ def main():
     # 1. Унификация стран
     df = unify_country_names(df_raw, ["prod_coo", "exporter_country", "importer_country"])
 
-    # 2. Обогащение по дубликатам
+    # 2. Обрезка prod_hsc
+    df = truncate_long_prod_hsc(df)
+
+    # 3. Обогащение по дубликатам
     df = enrich_decl_duplicates(df)
 
-    # 3. Аномалии unit_price_kg
+    # 4. Аномалии unit_price_kg
     df = flag_unit_price_anomalies(df)
     logger.info(f"❗ Некорректных строк: {(~df['is_valid']).sum()}")
 
-    # 4. Подозрительные компании
+    # 5. Подозрительные компании
     df = flag_suspect_companies(df)
 
-    # 5. Ручной блеклист
+    # 6. Ручной блеклист
     df = apply_manual_blacklist(df, BLACKLIST_PATH)
 
     try:
