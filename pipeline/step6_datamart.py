@@ -59,12 +59,12 @@ def add_is_relevant_column(df):
 
 def main():
     start_time = datetime.now()
-    logger.info('--- Начало Step 5 ---')
+    logger.info('--- Step 6: Формирование датамарта ---')
 
     df = read_excel_file(INPUT_PATH)
     df = add_is_relevant_column(df)
-    df_cleaned = df.drop(columns=COLUMNS_TO_DROP, errors='ignore')
-    save_to_excel_file(df_cleaned, OUTPUT_PATH)
+    #df = df.drop(columns=COLUMNS_TO_DROP, errors='ignore')
+    save_to_excel_file(df, OUTPUT_PATH)
 
     end_time = datetime.now()
     logger.info(f'Время начала: {start_time}')
