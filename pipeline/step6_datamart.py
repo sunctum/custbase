@@ -1,4 +1,4 @@
-# steps/step5_finalize.py
+# steps/step6_datamart.py
 
 from datetime import datetime
 
@@ -15,7 +15,7 @@ COLUMNS_TO_DROP = [
     'is_valid', 'is_valid_reason',
     'is_bad_importer', 'is_bad_exporter',
     'is_blacklisted_manual', 'blacklist_reason',
-    'classification', 'reason', 'matched_approved', 'matched_rejected',
+    'classification', 'reason', 'matched_approved', 'matched_rejected', 'matched_rejected_negated', 'negation_triggers', 'text_norm_preview'
     'brand_candidates', 'brand_mixed'
 ]
 
@@ -63,7 +63,7 @@ def main():
 
     df = read_excel_file(INPUT_PATH)
     df = add_is_relevant_column(df)
-    #df = df.drop(columns=COLUMNS_TO_DROP, errors='ignore')
+    df = df.drop(columns=COLUMNS_TO_DROP, errors='ignore')
     save_to_excel_file(df, OUTPUT_PATH)
 
     end_time = datetime.now()

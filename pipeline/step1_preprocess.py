@@ -79,9 +79,9 @@ COLUMNS_MAPS = {
     }
 }
 
-def process_source(name, path, columns_map, sheet_name='Sheet1', parse_dates=None):
+def process_source(name, path, columns_map, sheet_name):
     logger.info(f'Читается источник: {name}')
-    df = read_excel_file(path, sheet_name=sheet_name, parse_dates=parse_dates)
+    df = read_excel_file(path, sheet_name)
     if 'decl_date' in columns_map.values():
         date_column = next(k for k, v in columns_map.items() if v == 'decl_date')
         df[date_column] = pd.to_datetime(df[date_column], errors='coerce', dayfirst=True)
@@ -102,9 +102,9 @@ def main():
     start_time = datetime.now()
     logger.info('--- Step 1: Загрузка и нормализация ---')
 
-    df_rf = process_source('РФ-Мир', INPUT_PATHS['rf_world'], COLUMNS_MAPS['rf_world'])
-    df_eau = process_source('ЕАЭС', INPUT_PATHS['eau'], COLUMNS_MAPS['eau'])
-    df_atlas = process_source('Атлас', INPUT_PATHS['atlas'], COLUMNS_MAPS['atlas'], sheet_name=0, parse_dates=[1])
+    df_rf = process_source('РФ-Мир', INPUT_PATHS['rf_world'], COLUMNS_MAPS['rf_world'], 0)
+    df_eau = process_source('ЕАЭС', INPUT_PATHS['eau'], COLUMNS_MAPS['eau'], 0)
+    df_atlas = process_source('Атлас', INPUT_PATHS['atlas'], COLUMNS_MAPS['atlas'], 0)
 
     merged_df = pd.concat([df_eau, df_atlas, df_rf], ignore_index=True)
     merged_df['decl_date'] = pd.to_datetime(merged_df['decl_date'], errors='coerce')
