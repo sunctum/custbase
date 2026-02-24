@@ -1,10 +1,9 @@
-# Игнорировать все файлы в папке archive
-/archive/*
-
-# Игнорировать все файлы в папке data
-/data/*
+# Игнорировать все источники (xlsx)
+*.xlsx
+*.xls
 
 # Виртуальное окружение
 /pipeline/venv
+/data/utilities/word_tagger/venv
 /venv
 *.pyc

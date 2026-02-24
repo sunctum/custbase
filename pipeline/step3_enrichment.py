@@ -15,7 +15,7 @@ logger.info('--- Step 3: Обогащение и валидация ---')
 # --- Пути ---
 INPUT_PATH = 'data/st2_tagged/st2.xlsx'
 OUTPUT_PATH = 'data/st3_enriched/st3.xlsx'
-BLACKLIST_PATH = 'data/utilities/blacklist_companies.xlsx'
+BLACKLIST_PATH = 'data/utilities/blacklist_companies.csv'
 
 # ---------------------------- ФУНКЦИИ ---------------------------- #
 
@@ -284,7 +284,7 @@ def apply_manual_blacklist(df: pd.DataFrame, path: str) -> pd.DataFrame:
     df['is_blacklisted_manual'] = False
     df['blacklist_reason'] = ""
     try:
-        blacklist = pd.read_excel(path)
+        blacklist = pd.read_csv(path)
         blacklist = blacklist.dropna(subset=["company_name", "type"])
         for _, row in blacklist.iterrows():
             name = row["company_name"]

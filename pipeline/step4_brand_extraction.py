@@ -20,13 +20,13 @@ logger.info('--- Step 4: Определение брендов ---')
 # --- Пути и параметры ---
 INPUT_PATH = "data/st3_enriched/st3.xlsx"
 OUTPUT_PATH = "data/st4_branded/st4.xlsx"
-BRAND_DICT_PATH = "data/utilities/dict_brand.xlsx"
+BRAND_DICT_PATH = "data/utilities/dict_brand.csv"
 FUZZY_MIN_ALIAS_LEN = 3
 
 # ---------------------------- ФУНКЦИИ ---------------------------- #
 
-def load_brand_aliases(excel_path: str) -> dict:
-    df = pd.read_excel(excel_path)
+def load_brand_aliases(excel_path: str) -> tuple[dict, dict]:
+    df = pd.read_csv(excel_path)
     df = df.dropna(subset=['brand', 'aliases'])
     df['brand'] = df['brand'].str.strip().str.lower()
     df['match_type'] = df['match_type'].str.strip().str.lower()
@@ -93,7 +93,7 @@ def extract_brand_from_row(row: pd.Series, exact_dict: dict, fuzzy_dict: dict, f
                 threshold = get_adaptive_threshold(token)
                 result = fuzz_process.extractOne(token, fuzzy_keys, score_cutoff=threshold)
                 if result:
-                    match, _ = result
+                    match, _, *rest = result
                     found.add(fuzzy_dict[match])
                     column_reasons.append(field)
 
